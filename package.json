@@ -1,0 +1,30 @@
+{
+  "name": "tauri-plugin-sqlx",
+  "version": "0.1.0-alpha.0",
+  "description": "Interface with SQL databases",
+  "license": "MIT",
+  "authors": [
+    "Tauri Programme within The Commons Conservancy"
+  ],
+  "type": "module",
+  "scripts": {
+    "build": "rollup -c",
+    "test": "echo 'No tests defined'"
+  },
+  "files": [
+    "dist-js",
+    "!dist-js/**/*.map",
+    "README.md",
+    "LICENSE"
+  ],
+  "devDependencies": {
+    "tslib": "^2.5.0"
+  },
+  "dependencies": {
+    "@rollup/plugin-node-resolve": "^16.0.1",
+    "@rollup/plugin-terser": "^0.4.4",
+    "@rollup/plugin-typescript": "^12.1.4",
+    "@tauri-apps/api": "2.0.0-alpha.4",
+    "typescript": "^5.8.3"
+  }
+}
