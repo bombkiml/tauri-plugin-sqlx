@@ -61,7 +61,7 @@ chrono = { version = "0.4", features = ["serde"] }
 anyhow = "1.0"
 
 #sqlx = { version = "0.8", features = ["json", "time"] }
-sqlx = { version = "0.5", features = [
+sqlx = { version = "0.6", features = [
   "runtime-tokio-rustls",
   "time",
   "macros",
