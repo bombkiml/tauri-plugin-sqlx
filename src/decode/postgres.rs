@@ -14,42 +14,21 @@ pub(crate) fn to_json(v: PgValueRef) -> Result<JsonValue, Error> {
     }
 
     let res = match v.type_info().name() {
-        "CHAR" | "VARCHAR" | "TEXT" | "NAME" | "UUID" => {
+        "CHAR" | "VARCHAR" | "TEXT" | "NAME" => {
             if let Ok(v) = ValueRef::to_owned(&v).try_decode() {
                 JsonValue::String(v)
             } else {
                 JsonValue::Null
             }
         }
-        "FLOAT4" => {
-            if let Ok(v) = ValueRef::to_owned(&v).try_decode::<f32>() {
-                JsonValue::from(v)
-            } else {
-                JsonValue::Null
-            }
-        }
-        "FLOAT8" => {
+        "FLOAT4" | "FLOAT8" => {
             if let Ok(v) = ValueRef::to_owned(&v).try_decode::<f64>() {
                 JsonValue::from(v)
             } else {
                 JsonValue::Null
             }
         }
-        "INT2" => {
-            if let Ok(v) = ValueRef::to_owned(&v).try_decode::<i16>() {
-                JsonValue::Number(v.into())
-            } else {
-                JsonValue::Null
-            }
-        }
-        "INT4" => {
-            if let Ok(v) = ValueRef::to_owned(&v).try_decode::<i32>() {
-                JsonValue::Number(v.into())
-            } else {
-                JsonValue::Null
-            }
-        }
-        "INT8" => {
+        "INT2" | "INT4" | "INT8" => {
             if let Ok(v) = ValueRef::to_owned(&v).try_decode::<i64>() {
                 JsonValue::Number(v.into())
             } else {

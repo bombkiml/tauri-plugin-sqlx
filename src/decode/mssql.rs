@@ -1,38 +1,44 @@
-use serde_json::Value as JsonValue;
-use sqlx::mssql::MssqlValueRef;
-use sqlx::value_ref::ValueRef;
+vuse serde_json::Value as JsonValue;
+use sqlx::{value::ValueRef, TypeInfo};
 use std::str;
 
-pub fn to_json(value: MssqlValueRef<'_>) -> Result<JsonValue, sqlx::Error> {
-    if value.is_null() {
-        return Ok(JsonValue::Null);
-    }
+use crate::Error;
 
-    // Attempt decoding based on common MSSQL types
-    // You can extend this with other types as needed
+pub fn to_json(value: sqlx::value::RawValue<'_>) -> Result<JsonValue, Error> {
+    let type_info = value.type_info();
 
-    match value.type_info().name() {
-        "int" => Ok(JsonValue::from(value.try_get::<i32>()?)),
-        "bigint" => Ok(JsonValue::from(value.try_get::<i64>()?)),
-        "bit" => Ok(JsonValue::from(value.try_get::<bool>()?)),
-        "float" => Ok(JsonValue::from(value.try_get::<f64>()?)),
-        "nvarchar" | "varchar" | "text" => {
-            let s: &str = value.try_get()?;
-            Ok(JsonValue::from(s.to_string()))
+    match type_info.name() {
+        // Common integer types
+        "INT" | "BIGINT" | "SMALLINT" | "TINYINT" | "INTEGER" => {
+            Ok(JsonValue::Number(value.as_i64()?.into()))
         }
-        "uniqueidentifier" => {
-            let guid: uuid::Uuid = value.try_get()?;
-            Ok(JsonValue::from(guid.to_string()))
+
+        // MSSQL and Postgres float types
+        "FLOAT" | "REAL" | "DOUBLE PRECISION" | "DECIMAL" | "NUMERIC" | "MONEY" | "SMALLMONEY" => {
+            Ok(JsonValue::Number(
+                serde_json::Number::from_f64(value.as_f64()?).ok_or_else(|| {
+                    Error::UnsupportedDatatype("Invalid float conversion".to_string())
+                })?,
+            ))
         }
-        "datetime" | "datetime2" => {
-            let dt: chrono::NaiveDateTime = value.try_get()?;
-            Ok(JsonValue::from(dt.to_string()))
+
+        // Boolean
+        "BIT" | "BOOLEAN" => Ok(JsonValue::Bool(value.as_bool()?)),
+
+        // Strings and text
+        "CHAR" | "NCHAR" | "VARCHAR" | "NVARCHAR" | "TEXT" | "NTEXT" | "STRING" => {
+            Ok(JsonValue::String(value.as_str()?.to_string()))
         }
-        _ => {
-            // Fallback: try to get as bytes and convert to string
-            let bytes: &[u8] = value.try_get()?;
-            let s = str::from_utf8(bytes).unwrap_or_default();
-            Ok(JsonValue::from(s.to_string()))
+
+        // Date and time types
+        "DATE" | "DATETIME" | "DATETIME2" | "SMALLDATETIME" | "TIMESTAMP" | "TIME" => {
+            Ok(JsonValue::String(value.as_str()?.to_string()))
         }
+
+        // UUID
+        "UNIQUEIDENTIFIER" | "UUID" => Ok(JsonValue::String(value.as_str()?.to_string())),
+
+        // Fallback for unknown or unhandled types
+        other => Err(Error::UnsupportedDatatype(other.to_string())),
     }
 }

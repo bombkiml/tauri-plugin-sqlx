@@ -84,8 +84,9 @@ futures-core = "0.3.31"
 tauri-build = { version = "2.0.0-alpha.5", features = [] }
 
 [features]
+default = []
 sqlite = ["sqlx/sqlite"]
 mysql = ["sqlx/mysql"]
 postgres = ["sqlx/postgres"]
 mssql = ["sqlx/mssql"]
-custom-protocol = ["tauri/custom-protocol"]
+# custom-protocol = ["tauri/custom-protocol"]
