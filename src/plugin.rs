@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: Apache-2.0 OR MIT
-
 use futures_core::future::BoxFuture;
 use serde::{ser::Serializer, Deserialize, Serialize};
 use serde_json::Value as JsonValue;
@@ -270,13 +268,6 @@ pub struct Builder {
 }
 
 impl Builder {
-  pub fn new() -> Self {
-      #[cfg(not(any(feature = "sqlite", feature = "mysql", feature = "postgres", feature = "mssql")))]
-      eprintln!("No sql driver enabled. Please set at least one of the \"sqlite\", \"mysql\", \"postgres\", or \"mssql\" feature flags.");
-
-      Self::default()
-  }
-
   /// Add migrations to a database.
   #[must_use]
   pub fn add_migrations(mut self, db_url: &str, migrations: Vec<Migration>) -> Self {
@@ -288,30 +279,32 @@ impl Builder {
 
   pub fn build<R: Runtime>(mut self) -> TauriPlugin<R, Option<PluginConfig>> {
       PluginBuilder::<R, Option<PluginConfig>>::new("sql")
-          .invoke_handler(tauri::generate_handler![
-              commands::load,
-              commands::execute,
-              commands::select,
-              commands::close
-          ])
-          .setup(move |app, api| {
+          .js_init_script(include_str!("api-iife.js").to_string())
+          .invoke_handler(tauri::generate_handler![load, execute, select, close])
+          .setup(|app, api| {
               let config = api.config().clone().unwrap_or_default();
 
-              run_async_command(async move {
+              #[cfg(feature = "sqlite")]
+              create_dir_all(app_path(app)).expect("problems creating App directory!");
+
+              tauri::async_runtime::block_on(async move {
                   let instances = DbInstances::default();
-                  let mut lock = instances.0.write().await;
-
+                  let mut lock = instances.0.lock().await;
                   for db in config.preload {
-                      let pool = DbPool::connect(&db, app).await?;
+                      #[cfg(feature = "sqlite")]
+                      let fqdb = path_mapper(app_path(app), &db);
+                      #[cfg(not(feature = "sqlite"))]
+                      let fqdb = db.clone();
 
-                      if let Some(migrations) =
-                          self.migrations.as_mut().and_then(|mm| mm.remove(&db))
-                      {
-                          // Pass owned migrations (no &) and await async new()
-                          let migrator = Migrator::new(migrations).await?;
-                          pool.migrate(&migrator).await?;
+                      if !Db::database_exists(&fqdb).await.unwrap_or(false) {
+                          Db::create_database(&fqdb).await?;
                       }
+                      let pool = Pool::connect(&fqdb).await?;
 
+                      if let Some(migrations) = self.migrations.as_mut().unwrap().remove(&db) {
+                          let migrator = Migrator::new(migrations).await?;
+                          migrator.run(&pool).await?;
+                      }
                       lock.insert(db, pool);
                   }
                   drop(lock);
@@ -326,9 +319,9 @@ impl Builder {
           })
           .on_event(|app, event| {
               if let RunEvent::Exit = event {
-                  run_async_command(async move {
+                  tauri::async_runtime::block_on(async move {
                       let instances = &*app.state::<DbInstances>();
-                      let instances = instances.0.read().await;
+                      let instances = instances.0.lock().await;
                       for value in instances.values() {
                           value.close().await;
                       }

@@ -9,6 +9,8 @@ tsconfig.base.json
 # Test file
 src-*
 guest-js-*
+guest-js/index_*
+guest-js/index-*
 Cargo-*.toml
 
 # Logs
